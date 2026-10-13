@@ -111,8 +111,11 @@ void ConnectivityQuery::Request(Callback callback) {
 
 void ConnectivityQuery::Run(std::shared_ptr<Shared> shared) {
   // Its own instance: COM objects are bound to the apartment that made them.
-  NetworkManager manager;
-  const bool ready = manager.Init();
+  // Deliberately never destroyed. The detached worker outlives plugin
+  // teardown, and releasing it (or CoUninitialize) while the process is
+  // shutting COM down ran code in an already-unloaded netprofm.dll.
+  auto *manager = new NetworkManager();
+  const bool ready = manager->Init();
 
   std::unique_lock<std::mutex> lock(shared->mutex);
   uint64_t started = 0;
@@ -127,7 +130,7 @@ void ConnectivityQuery::Run(std::shared_ptr<Shared> shared) {
 
     lock.unlock();
     std::set<ConnectivityType> types =
-        ready ? manager.GetConnectivityTypes()
+        ready ? manager->GetConnectivityTypes()
               : std::set<ConnectivityType>{ConnectivityType::None};
     lock.lock();
 
